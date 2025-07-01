@@ -1,0 +1,360 @@
+{
+  "name": "AI Support Router",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "initialMessages": "👋 Welcome to our Support System! Please describe your issue or question, and I'll route it to the right team.",
+        "options": {
+          "allowFileUploads": false,
+          "inputPlaceholder": "Type your support query here...",
+          "responseMode": "lastNode",
+          "title": "Support Query System"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "2483ae73-da5c-48f5-9a59-f58feca7efe4",
+      "name": "Support Query System",
+      "webhookId": "b4904056-8e1f-4fb4-b38c-752c53c70f7d"
+    },
+    {
+      "parameters": {
+        "inputText": "={{ $json.chatInput }}",
+        "categories": {
+          "categories": [
+            {
+              "category": "customer",
+              "description": "customer support queries including billing questions, product inquiries, account issues, subscription problems, refund requests, pricing questions, general support, feature requests, and sales inquiries. These are handled by customer service representatives."
+            },
+            {
+              "category": "admin",
+              "description": "Technical and administrative queries requiring immediate expert attention including system outages, API integration failures, security concerns, critical production issues, urgent technical emergencies, infrastructure problems, and technical escalations. These require technical team expertise."
+            }
+          ]
+        },
+        "options": {
+          "multiClass": false,
+          "fallback": "other",
+          "enableAutoFixing": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.textClassifier",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        0
+      ],
+      "id": "b3711687-deff-4e7a-b467-092e3f210890",
+      "name": "Text Classifier"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-lite-preview-06-17",
+        "options": {
+          "maxOutputTokens": 200,
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        300,
+        200
+      ],
+      "id": "9e5323f2-22eb-4106-b76c-40314ce85a24",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "WJDs7e6mYaTOeM3I",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.escuelajs.co/api/v1/users",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        580,
+        -120
+      ],
+      "id": "97a83c0d-897b-4d1e-8690-8fc2cd136328",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "url": "https://api.escuelajs.co/api/v1/users",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        40
+      ],
+      "id": "f953191e-1ada-4def-a395-7b83fe8f4f3a",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "errorMessage": "Classification failed"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        580,
+        120
+      ],
+      "id": "226bbcb8-219c-46d0-911a-56fb209da968",
+      "name": "Stop and Error"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the original query from Support Query System node\nconst originalQuery = $('Support Query System').first().json.chatInput;\n\n// $input.all() gives you all items from HTTP Request\nconst users = $input.all().map(item => item.json);\n\n// Filter users with customer role\nconst customerUsers = users.filter(user => user.role === 'customer');\n\n// Smart selection logic - round robin or random\nconst activeCustomerUsers = customerUsers.filter(user =>\n  user.email && user.name && user.email !== 'a@gmail.com'\n);\n\nconst selectedUser = activeCustomerUsers[Math.floor(Math.random() * activeCustomerUsers.length)] || customerUsers[0];\n\nreturn [\n  {\n    json: {\n      selectedUser,\n      userEmail: selectedUser.email,\n      userName: selectedUser.name,\n      userId: selectedUser.id,\n      userRole: selectedUser.role,\n      userAvatar: selectedUser.avatar,\n      originalQuery,\n      classification: 'customer',\n      urgency: 'normal',\n      currentDateTime: new Date().toISOString(),\n      currentUser: 'rkj180220',\n      ticketId: `CST-${Date.now()}`\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -120
+      ],
+      "id": "de5735fe-f505-42fe-8101-f6499cb45c87",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the original query from Support Query System node (update node name if needed!)\nconst originalQuery = $('Support Query System').first().json.chatInput;\n\n// Gather all users from HTTP Request node\nconst users = $input.all().map(item => item.json);\n\n// Filter users with admin role\nconst adminUsers = users.filter(user => user.role === 'admin');\n\n// Check if query is urgent based on keywords\nconst urgentKeywords = ['urgent', 'critical', 'down', 'emergency', 'production', 'api', 'system', 'outage', 'error'];\nconst isUrgent = urgentKeywords.some(keyword =>\n  originalQuery.toLowerCase().includes(keyword)\n);\n\n// For urgent queries, select one admin (randomly) -- you can change this to send to all admins if you want\nconst selectedUser = adminUsers[Math.floor(Math.random() * adminUsers.length)] || adminUsers[0];\n\n// Return a single item with the admin info and context\nreturn [{\n  json: {\n    selectedUser,\n    userEmail: selectedUser.email,\n    userName: selectedUser.name,\n    userId: selectedUser.id,\n    userRole: selectedUser.role,\n    userAvatar: selectedUser.avatar,\n    originalQuery,\n    classification: 'admin',\n    urgency: isUrgent ? 'critical' : 'high',\n    currentDateTime: new Date().toISOString(),\n    currentUser: 'rkj180220',\n    ticketId: `ADM-${Date.now()}`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        40
+      ],
+      "id": "f7c96374-3857-4ebe-8470-2e8aefc31317",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "=New Customer Support Query - {{ $json.ticketId }} - {{ $json.currentDateTime }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #2196F3; border-radius: 8px;\">   <div style=\"text-align: center; padding: 20px 0; background: linear-gradient(135deg, #2196F3, #21CBF3); color: white; border-radius: 8px 8px 0 0; margin: -20px -20px 20px -20px;\">     <h2 style=\"margin: 0; font-size: 24px;\">📋 New Customer Support Query</h2>     <p style=\"margin: 5px 0 0 0; opacity: 0.9;\">Ticket ID: {{ $json.ticketId }}</p>   </div>      <div style=\"background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;\">     <h3 style=\"margin-top: 0; color: #333; border-bottom: 2px solid #2196F3; padding-bottom: 10px;\">🎯 Assignment Details</h3>     <table style=\"width: 100%; border-collapse: collapse;\">       <tr>         <td style=\"padding: 8px 0; font-weight: bold; color: #555;\">Assigned to:</td>         <td style=\"padding: 8px 0; color: #333;\">{{ $json.userName }} (ID: {{ $json.userId }})</td>       </tr>       <tr>         <td style=\"padding: 8px 0; font-weight: bold; color: #555;\">Classification:</td>         <td style=\"padding: 8px 0;\"><span style=\"background: #2196F3; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;\">CUSTOMER SUPPORT</span></td>       </tr>       <tr>         <td style=\"padding: 8px 0; font-weight: bold; color: #555;\">Priority:</td>         <td style=\"padding: 8px 0;\"><span style=\"background: #ff9800; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;\">{{ $json.urgency.toUpperCase() }}</span></td>       </tr>       <tr>         <td style=\"padding: 8px 0; font-weight: bold; color: #555;\">Submitted by:</td>         <td style=\"padding: 8px 0; color: #333;\">{{ $json.currentUser }}</td>       </tr>       <tr>         <td style=\"padding: 8px 0; font-weight: bold; color: #555;\">Date & Time:</td>         <td style=\"padding: 8px 0; color: #333;\">{{ $json.currentDateTime }} UTC</td>       </tr>     </table>   </div>      <div style=\"background-color: #fff3cd; padding: 20px; border-left: 4px solid #ffc107; margin: 20px 0; border-radius: 0 8px 8px 0;\">     <h3 style=\"margin-top: 0; color: #856404;\">💬 Customer Query:</h3>     <div style=\"background: white; padding: 15px; border-radius: 6px; font-style: italic; font-size: 16px; line-height: 1.6; color: #212529; border: 1px solid #ffeaa7;\">       \"{{ $json.originalQuery }}\"     </div>   </div>      <div style=\"background-color: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0;\">     <h3 style=\"margin-top: 0; color: #155724;\">✅ Action Required:</h3>     <ul style=\"color: #155724; line-height: 1.6;\">       <li><strong>Response SLA:</strong> Within 2-4 hours</li>       <li><strong>Classification:</strong> Routine customer support matter</li>       <li><strong>Next Steps:</strong> Contact customer directly via email or phone</li>       <li><strong>Follow-up:</strong> Update ticket status after resolution</li>     </ul>   </div>      <div style=\"text-align: center; margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 8px;\">     <p style=\"color: #666; font-size: 14px; margin: 0;\">       🤖 This email was automatically generated by the AI Support Classification System<br>       <strong>System User:</strong> rkj180220 | <strong>Timestamp:</strong> 2025-07-01 16:44:19 UTC     </p>   </div> </div>",
+        "options": {
+          "sendTo": "={{ $json.userEmail }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1020,
+        -120
+      ],
+      "id": "be2f4dd2-598e-4d71-9fc5-ccf219c50d0c",
+      "name": "Create a draft",
+      "webhookId": "20241906-3b71-4037-afef-a7650eeb3a6d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "l6ook0URWbhMN5J4",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "=🚨 URGENT: Technical Query - {{ $json.ticketId }} - IMMEDIATE ATTENTION REQUIRED",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 3px solid #dc3545; border-radius: 8px; background-color: #fff5f5;\">   <div style=\"text-align: center; padding: 20px 0; background: linear-gradient(135deg, #dc3545, #c82333); color: white; border-radius: 8px; margin: -20px -20px 20px -20px;\">     <h2 style=\"margin: 0; font-size: 28px; animation: pulse 2s infinite;\">🚨 TECHNICAL EMERGENCY</h2>     <p style=\"margin: 5px 0 0 0; opacity: 0.9; font-size: 18px; font-weight: bold;\">Ticket ID: {{ $json.ticketId }}</p>   </div>      <div style=\"background-color: #f8d7da; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px solid #dc3545;\">     <h3 style=\"margin-top: 0; color: #721c24; text-align: center;\">⚡ IMMEDIATE ACTION REQUIRED ⚡</h3>     <table style=\"width: 100%; border-collapse: collapse;\">       <tr>         <td style=\"padding: 10px; font-weight: bold; color: #721c24;\">Assigned to:</td>         <td style=\"padding: 10px; color: #721c24; font-weight: bold;\">{{ $json.userName }} (ID: {{ $json.userId }})</td>       </tr>       <tr>         <td style=\"padding: 10px; font-weight: bold; color: #721c24;\">Classification:</td>         <td style=\"padding: 10px;\"><span style=\"background: #dc3545; color: white; padding: 6px 12px; border-radius: 4px; font-weight: bold;\">TECHNICAL/ADMIN</span></td>       </tr>       <tr>         <td style=\"padding: 10px; font-weight: bold; color: #721c24;\">Priority:</td>         <td style=\"padding: 10px;\"><span style=\"background: #dc3545; color: white; padding: 6px 12px; border-radius: 4px; font-weight: bold; animation: blink 1s infinite;\">{{ $json.urgency.toUpperCase() }}</span></td>       </tr>       <tr>         <td style=\"padding: 10px; font-weight: bold; color: #721c24;\">Submitted by:</td>         <td style=\"padding: 10px; color: #721c24; font-weight: bold;\">{{ $json.currentUser }}</td>       </tr>       <tr>         <td style=\"padding: 10px; font-weight: bold; color: #721c24;\">Date & Time:</td>         <td style=\"padding: 10px; color: #721c24; font-weight: bold;\">{{ $json.currentDateTime }} UTC</td>       </tr>     </table>   </div>      <div style=\"background-color: #fff3cd; padding: 20px; border-left: 6px solid #dc3545; margin: 20px 0; border-radius: 0 8px 8px 0;\">     <h3 style=\"margin-top: 0; color: #721c24;\">🔥 TECHNICAL ISSUE/QUERY:</h3>     <div style=\"background: white; padding: 20px; border-radius: 6px; font-weight: bold; font-size: 18px; line-height: 1.6; color: #dc3545; border: 2px solid #dc3545;\">       \"{{ $json.originalQuery }}\"     </div>   </div>      <div style=\"background-color: #dc3545; color: white; padding: 25px; border-radius: 8px; margin: 20px 0; text-align: center;\">     <h3 style=\"margin-top: 0; color: white; font-size: 20px;\">⚡ EMERGENCY RESPONSE PROTOCOL ⚡</h3>     <ul style=\"color: white; font-weight: bold; text-align: left; font-size: 16px; line-height: 1.8;\">       <li><strong>RESPONSE SLA:</strong> {{ $json.urgency === 'critical' ? '15-30 minutes' : '1 hour' }} MAX</li>       <li><strong>ACTION:</strong> Investigate and resolve immediately</li>       <li><strong>ESCALATION:</strong> Notify senior technical team if needed</li>       <li><strong>REPORTING:</strong> Provide status updates every 15 minutes</li>       <li><strong>CONFIRMATION:</strong> Reply to acknowledge receipt ASAP</li>     </ul>   </div>      <div style=\"text-align: center; margin-top: 30px; padding: 20px; background-color: #721c24; color: white; border-radius: 8px;\">     <h3 style=\"margin: 0; color: white;\">🚨 TECHNICAL EMERGENCY PROTOCOL ACTIVATED 🚨</h3>     <p style=\"margin: 10px 0 0 0; color: white; font-weight: bold;\">       Please acknowledge receipt and provide immediate status update<br>       <strong>Auto-generated by:</strong> rkj180220 | <strong>System Time:</strong> 2025-07-01 16:44:19 UTC     </p>   </div> </div>",
+        "options": {
+          "sendTo": "={{ $json.userEmail }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1220,
+        40
+      ],
+      "id": "0a4f1d0f-96b8-409c-aad2-0f82760e2008",
+      "name": "Create a draft admin",
+      "webhookId": "e6e17bc2-6a79-45bf-80e8-7d1f658fed40",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "l6ook0URWbhMN5J4",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const classification = $json.classification || 'unknown';\nconst userEmail = $json.userEmail || 'Unknown';\nconst userName = $json.userName || 'Unknown';\nconst ticketId = $json.ticketId || 'Unknown';\nconst urgency = $json.urgency || 'normal';\n\n// Safely get originalQuery (from current item or from trigger node)\nlet originalQuery = $json.originalQuery;\nif (typeof originalQuery !== 'string' || !originalQuery.length) {\n  // Try to get it from the trigger node if not present (update node name if needed!)\n  try {\n    originalQuery = $('Support Query System').first().json.chatInput || 'N/A';\n  } catch (e) {\n    originalQuery = 'N/A';\n  }\n}\n\n// Use current date/time or your hardcoded value\nconst now = new Date().toISOString().replace('T', ' ').substring(0, 19) + \" UTC\";\n\nlet responseMessage;\n\nif (classification === 'customer') {\n  responseMessage = `✅ **Customer Support Query Successfully Processed**\n\n🎫 **Ticket Created:** ${ticketId}\n👤 **Assigned to:** ${userName}\n📧 **Email:** ${userEmail}\n🎯 **Classification:** Customer Support  \n⏱️ **Expected Response:** 2-4 hours\n📅 **Submitted:** ${now}\n👤 **Submitted by:** rkj180220\n\n**Your Query:** \"${originalQuery.substring(0, 100)}${originalQuery.length > 100 ? '...' : ''}\"\n\n✨ Our customer support team has been notified and will contact you soon!`;\n\n} else if (classification === 'admin') {\n  responseMessage = `🚨 **URGENT: Technical Query Escalated**\n\n🎫 **Emergency Ticket:** ${ticketId}\n👨‍💻 **Assigned to:** ${userName} (Technical Team)\n📧 **Email:** ${userEmail}\n🎯 **Classification:** Technical/Admin Support\n⚡ **Priority:** ${urgency.toUpperCase()} - IMMEDIATE ATTENTION\n⏱️ **Expected Response:** ${urgency === 'critical' ? '15-30 minutes' : '1 hour'}\n📅 **Submitted:** ${now}\n👤 **Submitted by:** rkj180220\n\n**Your Query:** \"${originalQuery.substring(0, 100)}${originalQuery.length > 100 ? '...' : ''}\"\n\n⚡ Our technical team will address this ${urgency === 'critical' ? 'IMMEDIATELY' : 'urgently'}!`;\n\n} else {\n  responseMessage = `❓ **Query Under Manual Review**\n\n🎫 **Review Ticket:** ${ticketId}\n👥 **Assigned for Review:** ${userName}\n📧 **Email:** ${userEmail}\n🎯 **Status:** Manual Classification Required\n⏱️ **Expected Response:** 1-2 hours  \n📅 **Submitted:** ${now}\n👤 **Submitted by:** rkj180220\n\n**Your Query:** \"${originalQuery.substring(0, 100)}${originalQuery.length > 100 ? '...' : ''}\"\n\n🔍 We'll manually classify and route your query to the appropriate team shortly.`;\n}\n\nreturn { response: responseMessage };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        -60
+      ],
+      "id": "123dbe0c-4b8d-4acd-b7e4-92f01d7947c3",
+      "name": "Response Formatter"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Support Query System": {
+      "main": [
+        [
+          {
+            "node": "Text Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Text Classifier",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text Classifier": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop and Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Create a draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Create a draft admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a draft": {
+      "main": [
+        [
+          {
+            "node": "Response Formatter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a draft admin": {
+      "main": [
+        [
+          {
+            "node": "Response Formatter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "50b50708-8a41-4bf4-96ad-a241e3cc0299",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cc42be38fdc26464fbbe4edb1e0a975db8665c41fafda9df6b959b7c7fd21faa"
+  },
+  "id": "PB6HNGHKjnEpkaKd",
+  "tags": []
+}
